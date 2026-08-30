@@ -24,6 +24,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Stable container name: this becomes the DNS hostname on the shared
+    # proxy network. Nginx Proxy Manager proxies to
+    # http://clickcraft-monitor-app:4000
+    container_name: clickcraft-monitor-app
     restart: unless-stopped
     env_file: .env
     environment:
@@ -33,9 +37,9 @@ services:
         condition: service_healthy
     ports:
       # Optional direct host binding for local debugging/health checks.
-      # When Nginx Proxy Manager is reached via the shared proxy network (below),
-      # this binding is not required — set HOST_BIND_ADDRESS/HOST_PORT or remove
-      # this section entirely. Never publish this to the public internet.
+      # When Nginx Proxy Manager reaches the app over the shared proxy
+      # network (below), this binding is not required — remove this section
+      # entirely if you don't need it. Never publish it publicly.
       - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-4000}:${APP_PORT:-4000}"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${APP_PORT:-4000}/api/health || exit 1"]
@@ -46,13 +50,9 @@ services:
     networks:
       # Private internal network (app <-> db).
       - monitor
-      # Shared external network with Nginx Proxy Manager.
-      # NPM proxies to http://<NPM_SERVICE_NAME>:4000 (default: clickcraft-monitor-app).
+      # Shared external network with Nginx Proxy Manager. Only this service
+      # joins it — the database and worker stay private.
       - proxy
-    # Optional: pin a stable alias NPM can target on the proxy network.
-    # networks:
-    #   proxy:
-    #     aliases: [monitor]
 
   worker:
     build:
