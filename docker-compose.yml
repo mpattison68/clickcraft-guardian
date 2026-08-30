@@ -10,12 +10,15 @@ services:
     volumes:
       - monitor_db_data:/var/lib/postgresql/data
     # Deliberately NOT published to the host: only the app network may reach Postgres.
+    # Also NOT attached to the shared proxy network: Nginx Proxy Manager must never
+    # be able to reach the database. Internal to the "monitor" network only.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
-    networks: [monitor]
+    networks:
+      - monitor
 
   app:
     build:
@@ -29,7 +32,10 @@ services:
       db:
         condition: service_healthy
     ports:
-      # Bind to localhost only; Nginx Proxy Manager forwards to this port.
+      # Optional direct host binding for local debugging/health checks.
+      # When Nginx Proxy Manager is reached via the shared proxy network (below),
+      # this binding is not required — set HOST_BIND_ADDRESS/HOST_PORT or remove
+      # this section entirely. Never publish this to the public internet.
       - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-4000}:${APP_PORT:-4000}"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${APP_PORT:-4000}/api/health || exit 1"]
@@ -37,7 +43,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
-    networks: [monitor]
+    networks:
+      # Private internal network (app <-> db).
+      - monitor
+      # Shared external network with Nginx Proxy Manager.
+      # NPM proxies to http://<NPM_SERVICE_NAME>:4000 (default: clickcraft-monitor-app).
+      - proxy
+    # Optional: pin a stable alias NPM can target on the proxy network.
+    # networks:
+    #   proxy:
+    #     aliases: [monitor]
 
   worker:
     build:
@@ -61,11 +76,23 @@ services:
       # Uncomment together with DOCKER_SOCKET_PATH=/var/run/docker.sock in .env.
       # Security note: see README — grants read access to the Docker API.
       # - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks: [monitor]
+    networks:
+      # Worker stays on the private network only — it serves no HTTP traffic
+      # and must not be reachable from the proxy network.
+      - monitor
 
 volumes:
   monitor_db_data:
 
 networks:
+  # Private internal network: app + worker + db only. Not shared with anything else.
   monitor:
     driver: bridge
+  # External network shared with Nginx Proxy Manager. Create it once on the VPS:
+  #   docker network create npm-proxy
+  # and attach NPM's compose stack to the same network. Only the "app" service
+  # joins it; the database and worker are never exposed to it.
+  # Override the name in .env with PROXY_NETWORK_NAME=<your-npm-network>.
+  proxy:
+    name: ${PROXY_NETWORK_NAME:-npm-proxy}
+    external: true
