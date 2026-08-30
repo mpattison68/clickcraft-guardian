@@ -54,6 +54,7 @@ export function AddSiteWizard({ onClose, onSaved }: { onClose: () => void; onSav
     warn_response_ms: 1500,
     critical_response_ms: 3000,
     content_failure_mode: "failure" as "failure" | "warning",
+    dns_mode: "static" as "static" | "dynamic",
     expected_content: "",
     forbidden_content: "",
   });
@@ -78,6 +79,7 @@ export function AddSiteWizard({ onClose, onSaved }: { onClose: () => void; onSav
         critical_response_ms: form.critical_response_ms,
         follow_redirects: true,
         content_failure_mode: form.content_failure_mode,
+        dns_mode: form.dns_mode,
         expected_content: form.expected_content.split("\n").map((s) => s.trim()).filter(Boolean),
         forbidden_content: form.forbidden_content.split("\n").map((s) => s.trim()).filter(Boolean),
         endpoints,
@@ -174,6 +176,25 @@ export function AddSiteWizard({ onClose, onSaved }: { onClose: () => void; onSav
                 value={form.critical_response_ms}
                 onChange={(e) => set("critical_response_ms", Number(e.target.value))}
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={label}>DNS monitoring mode</label>
+              <select
+                className={field}
+                value={form.dns_mode}
+                onChange={(e) => set("dns_mode", e.target.value as "static" | "dynamic")}
+              >
+                <option value="static">Static / fixed IP</option>
+                <option value="dynamic">Dynamic / CDN</option>
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Choose <strong>Static / fixed IP</strong> when the site resolves to fixed infrastructure (a dedicated
+                VPS or fixed A record) — any change to the A, AAAA or CNAME records is then flagged and alerted.
+                Choose <strong>Dynamic / CDN</strong> for sites behind a CDN, load balancer or shared hosting such as
+                Hostinger or Cloudflare, where edge IP addresses rotate normally: rotating A/AAAA addresses are
+                recorded for history but never alert, while CNAME target and authoritative nameserver changes are
+                still monitored. DNS resolution failure remains critical in both modes.
+              </p>
             </div>
           </div>
         ) : null}
