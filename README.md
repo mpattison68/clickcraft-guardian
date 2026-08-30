@@ -17,20 +17,29 @@ Monitoring runs server-side and continues whether or not anyone is signed in.
 ## 1. Architecture
 
 ```
-Internet → DNS → Nginx Proxy Manager (TLS) → app container (:4000)
-                                              ├── /api/*  Express API
-                                              └── /*      built SPA (static)
+Internet → DNS → Nginx Proxy Manager (TLS)
+                    │  shared external Docker network ("proxy")
+                    ▼
+              app container (clickcraft-monitor-app:4000)
+                    │  private internal Docker network ("monitor")
+                    ├── /api/*  Express API
+                    └── /*      built SPA (static)
 
 worker container ── HTTP / SSL / DNS / content / header checks
                  ── host metrics (/proc, /), Docker status (optional)
                  ── incident engine → Telegram + SMTP alerts
-                            ↓
-                     PostgreSQL (private network, no published port)
+                            │
+                     PostgreSQL (private "monitor" network only,
+                     no published port, NOT on the proxy network)
 ```
 
 Both `app` and `worker` are built from the same image and share the database.
 The worker resumes automatically after a container or VPS restart because all
 state lives in PostgreSQL.
+
+Only the `app` service joins the shared proxy network that Nginx Proxy Manager
+uses. `db` and `worker` stay on the private internal network and are never
+reachable from the proxy network.
 
 ### Repository layout
 
@@ -87,15 +96,21 @@ cd /opt
 git clone <your-repository-url> clickcraft-site-monitor
 cd clickcraft-site-monitor
 
-# 2. Create the local configuration (never committed)
+# 2. Create the shared proxy network shared with Nginx Proxy Manager (once)
+docker network create npm-proxy
+# If NPM is already running, make sure its compose stack is attached to the
+# same network (see section 4 below).
+
+# 3. Create the local configuration (never committed)
 cp .env.example .env
 nano .env
 chmod 600 .env
+# If your NPM network has a different name, set PROXY_NETWORK_NAME accordingly.
 
-# 3. Build and start
+# 4. Build and start
 docker compose up -d --build
 
-# 4. Confirm health
+# 5. Confirm health
 docker compose ps
 curl -s http://127.0.0.1:4000/api/health
 ```
@@ -109,7 +124,8 @@ curl -s http://127.0.0.1:4000/api/health
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | database credentials |
 | `SESSION_SECRET` | `openssl rand -base64 48` |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | initial administrator (min. 12 characters), created on first start only |
-| `HOST_BIND_ADDRESS` / `HOST_PORT` | published port for Nginx Proxy Manager (default `127.0.0.1:4000`) |
+| `PROXY_NETWORK_NAME` | external Docker network shared with Nginx Proxy Manager (default `npm-proxy`) |
+| `HOST_BIND_ADDRESS` / `HOST_PORT` | optional localhost binding for direct health checks (default `127.0.0.1:4000`); not needed for NPM |
 
 Optional: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `SMTP_*`, `ALERT_EMAIL_TO`,
 `DOCKER_SOCKET_PATH`, `ALLOW_PRIVATE_TARGETS`.
@@ -122,15 +138,47 @@ the repository, the frontend bundle or any API response.
 
 ## 4. Nginx Proxy Manager
 
-Create a Proxy Host:
+Nginx Proxy Manager itself runs in Docker, so it cannot reach `127.0.0.1:4000`
+on the VPS. Instead, both stacks share an **external Docker network** and NPM
+proxies to the app by its container hostname.
+
+### 4.1 Create and attach the shared network
+
+```bash
+# Create once on the VPS (name must match PROXY_NETWORK_NAME in .env)
+docker network create npm-proxy
+```
+
+Attach NPM's compose stack to the same network — add this to NPM's
+`docker-compose.yml`:
+
+```yaml
+networks:
+  default:
+  npm-proxy:
+    external: true
+
+services:
+  app:                      # the Nginx Proxy Manager service
+    networks:
+      - default
+      - npm-proxy
+```
+
+Then `docker compose up -d` in NPM's directory. If NPM was already running,
+`docker network connect npm-proxy <npm-container-name>` works too.
+
+This app's `docker-compose.yml` already attaches **only the `app` service** to
+the shared network. The `db` and `worker` services stay on the private
+`monitor` network — PostgreSQL is never reachable from the proxy network.
+
+### 4.2 Create the Proxy Host in NPM
 
 - **Domain Names**: `monitor.clickcraft.tech`
 - **Scheme**: `http`
-- **Forward Hostname / IP**: the VPS host address reachable from the NPM
-  container (`172.17.0.1` on the default bridge, or the LAN IP) if the app port
-  is bound to `127.0.0.1`. Alternatively set `HOST_BIND_ADDRESS=0.0.0.0`
-  behind a firewall, or attach NPM to this compose network manually.
-- **Forward Port**: `4000` (the value of `HOST_PORT`)
+- **Forward Hostname / IP**: `clickcraft-monitor-app`
+  (the stable container name / DNS hostname on the shared network)
+- **Forward Port**: `4000` (the container's internal `APP_PORT`)
 - **Cache Assets**: off
 - **Block Common Exploits**: on
 - **Websockets Support**: not required (the console uses polling); enabling it
@@ -141,6 +189,10 @@ Create a Proxy Host:
 The application does not manage certificates itself; NPM terminates TLS.
 `TRUST_PROXY=true` makes the app honour `X-Forwarded-For` / `X-Forwarded-Proto`,
 so secure cookies and client IP rate limiting behave correctly.
+
+The optional `127.0.0.1:4000` host port binding is only for direct health
+checks and debugging on the VPS (`curl http://127.0.0.1:4000/api/health`). You
+can remove the `ports:` section of the `app` service entirely once NPM works.
 
 ---
 
