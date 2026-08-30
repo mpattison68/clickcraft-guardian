@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   CartesianGrid,
@@ -12,8 +12,9 @@ import {
   YAxis,
 } from "recharts";
 import { AppShell } from "@/components/monitor/AppShell";
+import { EndpointDialog, type EndpointRecord } from "@/components/monitor/EndpointDialog";
 import { StatusPill } from "@/components/monitor/StatusPill";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { dateTime, duration, ms, percent, relativeTime } from "@/lib/format";
 
 export const Route = createFileRoute("/sites/$id")({
@@ -90,6 +91,10 @@ function SiteDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("Overview");
   const [range, setRange] = useState("24h");
+  const [endpointDialog, setEndpointDialog] = useState<{ open: boolean; endpoint: EndpointRecord | null }>({
+    open: false,
+    endpoint: null,
+  });
 
   const detail = useQuery({
     queryKey: ["site", id],
@@ -113,6 +118,16 @@ function SiteDetailPage() {
   });
   const acceptDns = useMutation({
     mutationFn: () => apiPost(`/sites/${id}/dns-baseline`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", id] }),
+  });
+
+  const toggleEndpoint = useMutation({
+    mutationFn: (v: { id: number; enabled: boolean }) =>
+      apiPatch(`/sites/${id}/endpoints/${v.id}/enabled`, { enabled: v.enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", id] }),
+  });
+  const deleteEndpoint = useMutation({
+    mutationFn: (endpointId: number) => apiDelete(`/sites/${id}/endpoints/${endpointId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", id] }),
   });
 
