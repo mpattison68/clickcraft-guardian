@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query } from "../../db/pool.js";
 import { requireAuth } from "../../auth/session.js";
 import { probeUrl, runSiteCheck } from "../../monitor/engine.js";
+import { performHttpCheck } from "../../checks/http.js";
 import { assertSafeUrl } from "../../checks/ssrf.js";
 import { getSettings } from "../../settings.js";
 import type { SiteRow } from "../../monitor/types.js";
