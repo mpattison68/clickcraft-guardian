@@ -82,7 +82,9 @@ export async function getSettings(force = false): Promise<AppSettings> {
   return value;
 }
 
-export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
+
+export async function saveSettings(patch: DeepPartial<AppSettings>): Promise<AppSettings> {
   const current = await getSettings(true);
   const next = merge(current, patch);
   await query(

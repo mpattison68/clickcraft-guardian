@@ -12,4 +12,15 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    server: {
+      // During local development the Node API runs separately on port 4000.
+      proxy: {
+        "/api": {
+          target: process.env["API_PROXY_TARGET"] ?? "http://localhost:4000",
+          changeOrigin: true,
+        },
+      },
+    },
+  },
 });

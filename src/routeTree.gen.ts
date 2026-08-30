@@ -10,11 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as IncidentsRouteImport } from './routes/incidents'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SitesRouteImport } from './routes/sites'
+import { Route as VpsRouteImport } from './routes/vps'
+import { Route as SitesIndexRouteImport } from './routes/sites.index'
+import { Route as SitesIdRouteImport } from './routes/sites.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IncidentsRoute = IncidentsRouteImport.update({
+  id: '/incidents',
+  path: '/incidents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -22,31 +34,113 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitesRoute = SitesRouteImport.update({
+  id: '/sites',
+  path: '/sites',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VpsRoute = VpsRouteImport.update({
+  id: '/vps',
+  path: '/vps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitesIndexRoute = SitesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SitesRoute,
+} as any)
+const SitesIdRoute = SitesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => SitesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/settings': typeof SettingsRoute
+  '/sites': typeof SitesRouteWithChildren
+  '/vps': typeof VpsRoute
+  '/sites/$id': typeof SitesIdRoute
+  '/sites/': typeof SitesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/settings': typeof SettingsRoute
+  '/vps': typeof VpsRoute
+  '/sites/$id': typeof SitesIdRoute
+  '/sites': typeof SitesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/settings': typeof SettingsRoute
+  '/sites': typeof SitesRouteWithChildren
+  '/vps': typeof VpsRoute
+  '/sites/$id': typeof SitesIdRoute
+  '/sites/': typeof SitesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths:
+    | '/'
+    | '/incidents'
+    | '/login'
+    | '/notifications'
+    | '/settings'
+    | '/sites'
+    | '/vps'
+    | '/sites/$id'
+    | '/sites/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login'
-  id: '__root__' | '/' | '/login'
+  to:
+    | '/'
+    | '/incidents'
+    | '/login'
+    | '/notifications'
+    | '/settings'
+    | '/vps'
+    | '/sites/$id'
+    | '/sites'
+  id:
+    | '__root__'
+    | '/'
+    | '/incidents'
+    | '/login'
+    | '/notifications'
+    | '/settings'
+    | '/sites'
+    | '/vps'
+    | '/sites/$id'
+    | '/sites/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  IncidentsRoute: typeof IncidentsRoute
   LoginRoute: typeof LoginRoute
+  NotificationsRoute: typeof NotificationsRoute
+  SettingsRoute: typeof SettingsRoute
+  SitesRoute: typeof SitesRouteWithChildren
+  VpsRoute: typeof VpsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +152,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/incidents': {
+      id: '/incidents'
+      path: '/incidents'
+      fullPath: '/incidents'
+      preLoaderRoute: typeof IncidentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -65,12 +166,71 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sites': {
+      id: '/sites'
+      path: '/sites'
+      fullPath: '/sites'
+      preLoaderRoute: typeof SitesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vps': {
+      id: '/vps'
+      path: '/vps'
+      fullPath: '/vps'
+      preLoaderRoute: typeof VpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sites/': {
+      id: '/sites/'
+      path: '/'
+      fullPath: '/sites/'
+      preLoaderRoute: typeof SitesIndexRouteImport
+      parentRoute: typeof SitesRoute
+    }
+    '/sites/$id': {
+      id: '/sites/$id'
+      path: '/$id'
+      fullPath: '/sites/$id'
+      preLoaderRoute: typeof SitesIdRouteImport
+      parentRoute: typeof SitesRoute
+    }
   }
 }
 
+interface SitesRouteChildren {
+  SitesIdRoute: typeof SitesIdRoute
+  SitesIndexRoute: typeof SitesIndexRoute
+}
+
+const SitesRouteChildren: SitesRouteChildren = {
+  SitesIdRoute: SitesIdRoute,
+  SitesIndexRoute: SitesIndexRoute,
+}
+
+const SitesRouteWithChildren = SitesRoute._addFileChildren(SitesRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  IncidentsRoute: IncidentsRoute,
   LoginRoute: LoginRoute,
+  NotificationsRoute: NotificationsRoute,
+  SettingsRoute: SettingsRoute,
+  SitesRoute: SitesRouteWithChildren,
+  VpsRoute: VpsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
