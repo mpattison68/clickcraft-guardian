@@ -36,3 +36,6 @@ dist-ssr
 .env.*
 !.env.example
 server/dist
+
+# Local artefacts from building the SPA into the API image
+server/public
