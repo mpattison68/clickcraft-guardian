@@ -17,6 +17,7 @@ export interface SiteRow {
   expected_content: string[];
   forbidden_content: string[];
   content_failure_mode: "failure" | "warning";
+  dns_mode: "static" | "dynamic";
   status: HealthStatus;
   consecutive_failures: number;
   consecutive_successes: number;

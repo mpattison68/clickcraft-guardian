@@ -2,7 +2,7 @@ import { query } from "../db/pool.js";
 import { createLogger } from "../logger.js";
 import { dispatchNotification } from "../notify/dispatcher.js";
 import { getSettings } from "../settings.js";
-import { performDnsCheck } from "../checks/dns.js";
+import { performDnsCheck, type DnsMode } from "../checks/dns.js";
 import { performHttpCheck } from "../checks/http.js";
 import { performSslCheck } from "../checks/ssl.js";
 import { assertSafeUrl } from "../checks/ssrf.js";
@@ -133,8 +133,15 @@ async function runDnsCheck(site: SiteRow, force: boolean) {
   if (!due) return null;
   lastDns.set(site.id, Date.now());
 
-  const baselineRes = await query<{ a_records: string[]; aaaa_records: string[]; cname_records: string[] }>(
-    "SELECT a_records, aaaa_records, cname_records FROM dns_baselines WHERE site_id = $1",
+  const mode: DnsMode = site.dns_mode === "dynamic" ? "dynamic" : "static";
+
+  const baselineRes = await query<{
+    a_records: string[];
+    aaaa_records: string[];
+    cname_records: string[];
+    ns_records: string[];
+  }>(
+    "SELECT a_records, aaaa_records, cname_records, ns_records FROM dns_baselines WHERE site_id = $1",
     [site.id],
   );
   const baselineRow = baselineRes.rows[0];
@@ -143,28 +150,37 @@ async function runDnsCheck(site: SiteRow, force: boolean) {
         aRecords: baselineRow.a_records,
         aaaaRecords: baselineRow.aaaa_records,
         cnameRecords: baselineRow.cname_records,
+        nsRecords: baselineRow.ns_records ?? [],
       }
     : null;
 
-  const r = await performDnsCheck(site.hostname, baseline);
+  const r = await performDnsCheck(site.hostname, baseline, mode);
   await query(
-    `INSERT INTO dns_checks(site_id, status, a_records, aaaa_records, cname_records, changed, error_message)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [site.id, r.status, r.aRecords, r.aaaaRecords, r.cnameRecords, r.changed, r.errorMessage],
+    `INSERT INTO dns_checks(site_id, status, a_records, aaaa_records, cname_records, ns_records, changed, error_message)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [site.id, r.status, r.aRecords, r.aaaaRecords, r.cnameRecords, r.nsRecords, r.changed, r.errorMessage],
   );
 
   if (!baseline && r.status === "healthy") {
     await query(
-      `INSERT INTO dns_baselines(site_id, a_records, aaaa_records, cname_records)
-       VALUES ($1,$2,$3,$4) ON CONFLICT (site_id) DO NOTHING`,
-      [site.id, r.aRecords, r.aaaaRecords, r.cnameRecords],
+      `INSERT INTO dns_baselines(site_id, a_records, aaaa_records, cname_records, ns_records)
+       VALUES ($1,$2,$3,$4,$5) ON CONFLICT (site_id) DO NOTHING`,
+      [site.id, r.aRecords, r.aaaaRecords, r.cnameRecords, r.nsRecords],
     );
+  } else if (baseline && mode === "dynamic" && baseline.nsRecords.length === 0 && r.nsRecords.length > 0) {
+    // Backfill the nameserver baseline for sites switched to dynamic mode.
+    await query("UPDATE dns_baselines SET ns_records = $2 WHERE site_id = $1", [site.id, r.nsRecords]);
   }
   if (r.changed) {
     await dispatchNotification({
-      eventKey: `dns:${site.id}:${r.aRecords.join(",")}`,
+      eventKey: `dns:${site.id}:${r.changeReason}:${r.cnameRecords.join(",")}:${mode === "static" ? r.aRecords.join(",") : r.nsRecords.join(",")}`,
       subject: "🟠 DNS CHANGE DETECTED",
-      body: `${site.name}\n${site.hostname}\n\nA records now: ${r.aRecords.join(", ") || "none"}\nAccept the new baseline in the UI if this change was authorised.`,
+      body:
+        `${site.name}\n${site.hostname}\n\n${r.changeReason ?? "DNS configuration changed"}\n` +
+        `A records now: ${r.aRecords.join(", ") || "none"}\n` +
+        `CNAME now: ${r.cnameRecords.join(", ") || "none"}\n` +
+        `Nameservers now: ${r.nsRecords.join(", ") || "unknown"}\n` +
+        `Accept the new baseline in the UI if this change was authorised.`,
     });
   }
   return r;

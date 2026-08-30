@@ -39,6 +39,7 @@ const siteSchema = z.object({
   expected_content: z.array(z.string().max(500)).max(20).default([]),
   forbidden_content: z.array(z.string().max(500)).max(20).default([]),
   content_failure_mode: z.enum(["failure", "warning"]).default("failure"),
+  dns_mode: z.enum(["static", "dynamic"]).default("static"),
   endpoints: z.array(endpointSchema).max(25).default([]),
 });
 
@@ -82,8 +83,8 @@ sitesRouter.post("/", async (req, res) => {
   const inserted = await query<{ id: number }>(
     `INSERT INTO sites(name, description, url, hostname, enabled, interval_seconds, timeout_ms,
        expected_status, failure_threshold, warn_response_ms, critical_response_ms, follow_redirects,
-       expected_content, forbidden_content, content_failure_mode)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+       expected_content, forbidden_content, content_failure_mode, dns_mode)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
     [
       data.name,
       data.description,
@@ -100,6 +101,7 @@ sitesRouter.post("/", async (req, res) => {
       data.expected_content,
       data.forbidden_content,
       data.content_failure_mode,
+      data.dns_mode,
     ],
   );
   const siteId = inserted.rows[0].id;
@@ -174,11 +176,11 @@ sitesRouter.put("/:id", async (req, res) => {
     `UPDATE sites SET name=$2, description=$3, url=$4, hostname=$5, enabled=$6, interval_seconds=$7,
        timeout_ms=$8, expected_status=$9, failure_threshold=$10, warn_response_ms=$11,
        critical_response_ms=$12, follow_redirects=$13, expected_content=$14, forbidden_content=$15,
-       content_failure_mode=$16, updated_at=now() WHERE id=$1`,
+       content_failure_mode=$16, dns_mode=$17, updated_at=now() WHERE id=$1`,
     [
       id, d.name, d.description, d.url, hostname, d.enabled, d.interval_seconds, d.timeout_ms,
       d.expected_status, d.failure_threshold, d.warn_response_ms, d.critical_response_ms,
-      d.follow_redirects, d.expected_content, d.forbidden_content, d.content_failure_mode,
+      d.follow_redirects, d.expected_content, d.forbidden_content, d.content_failure_mode, d.dns_mode,
     ],
   );
   if (!result.rowCount) {
@@ -199,6 +201,24 @@ sitesRouter.patch("/:id/enabled", async (req, res) => {
   res.json({ ok: true });
 });
 
+sitesRouter.patch("/:id/dns-mode", async (req, res) => {
+  const id = Number(req.params.id);
+  const parsed = z.object({ dns_mode: z.enum(["static", "dynamic"]) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid DNS monitoring mode" });
+    return;
+  }
+  const result = await query("UPDATE sites SET dns_mode=$2, updated_at=now() WHERE id=$1", [
+    id,
+    parsed.data.dns_mode,
+  ]);
+  if (!result.rowCount) {
+    res.status(404).json({ error: "Site not found" });
+    return;
+  }
+  res.json({ ok: true });
+});
+
 sitesRouter.delete("/:id", async (req, res) => {
   await query("DELETE FROM sites WHERE id = $1", [Number(req.params.id)]);
   res.json({ ok: true });
@@ -216,8 +236,8 @@ sitesRouter.post("/:id/check", async (req, res) => {
 
 sitesRouter.post("/:id/dns-baseline", async (req, res) => {
   const id = Number(req.params.id);
-  const latest = await query<{ a_records: string[]; aaaa_records: string[]; cname_records: string[] }>(
-    "SELECT a_records, aaaa_records, cname_records FROM dns_checks WHERE site_id=$1 ORDER BY checked_at DESC LIMIT 1",
+  const latest = await query<{ a_records: string[]; aaaa_records: string[]; cname_records: string[]; ns_records: string[] }>(
+    "SELECT a_records, aaaa_records, cname_records, ns_records FROM dns_checks WHERE site_id=$1 ORDER BY checked_at DESC LIMIT 1",
     [id],
   );
   const row = latest.rows[0];
@@ -226,11 +246,12 @@ sitesRouter.post("/:id/dns-baseline", async (req, res) => {
     return;
   }
   await query(
-    `INSERT INTO dns_baselines(site_id, a_records, aaaa_records, cname_records, accepted_at)
-     VALUES ($1,$2,$3,$4,now())
+    `INSERT INTO dns_baselines(site_id, a_records, aaaa_records, cname_records, ns_records, accepted_at)
+     VALUES ($1,$2,$3,$4,$5,now())
      ON CONFLICT (site_id) DO UPDATE SET a_records=EXCLUDED.a_records,
-       aaaa_records=EXCLUDED.aaaa_records, cname_records=EXCLUDED.cname_records, accepted_at=now()`,
-    [id, row.a_records, row.aaaa_records, row.cname_records],
+       aaaa_records=EXCLUDED.aaaa_records, cname_records=EXCLUDED.cname_records,
+       ns_records=EXCLUDED.ns_records, accepted_at=now()`,
+    [id, row.a_records, row.aaaa_records, row.cname_records, row.ns_records ?? []],
   );
   await query("UPDATE dns_checks SET changed=false WHERE site_id=$1 AND changed=true", [id]);
   res.json({ ok: true });
