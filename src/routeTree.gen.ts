@@ -13,7 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as IncidentsRouteImport } from './routes/incidents'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as VpsRouteImport } from './routes/vps'
 import { Route as SitesIndexRouteImport } from './routes/sites.index'
+import { Route as SitesIdRouteImport } from './routes/sites.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -35,9 +37,19 @@ const NotificationsRoute = NotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VpsRoute = VpsRouteImport.update({
+  id: '/vps',
+  path: '/vps',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitesIndexRoute = SitesIndexRouteImport.update({
   id: '/sites/',
   path: '/sites/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitesIdRoute = SitesIdRouteImport.update({
+  id: '/sites/$id',
+  path: '/sites/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -46,6 +58,8 @@ export interface FileRoutesByFullPath {
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/vps': typeof VpsRoute
+  '/sites/$id': typeof SitesIdRoute
   '/sites/': typeof SitesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +67,8 @@ export interface FileRoutesByTo {
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/vps': typeof VpsRoute
+  '/sites/$id': typeof SitesIdRoute
   '/sites': typeof SitesIndexRoute
 }
 export interface FileRoutesById {
@@ -61,14 +77,38 @@ export interface FileRoutesById {
   '/incidents': typeof IncidentsRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/vps': typeof VpsRoute
+  '/sites/$id': typeof SitesIdRoute
   '/sites/': typeof SitesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/incidents' | '/login' | '/notifications' | '/sites/'
+  fullPaths:
+    | '/'
+    | '/incidents'
+    | '/login'
+    | '/notifications'
+    | '/vps'
+    | '/sites/$id'
+    | '/sites/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/incidents' | '/login' | '/notifications' | '/sites'
-  id: '__root__' | '/' | '/incidents' | '/login' | '/notifications' | '/sites/'
+  to:
+    | '/'
+    | '/incidents'
+    | '/login'
+    | '/notifications'
+    | '/vps'
+    | '/sites/$id'
+    | '/sites'
+  id:
+    | '__root__'
+    | '/'
+    | '/incidents'
+    | '/login'
+    | '/notifications'
+    | '/vps'
+    | '/sites/$id'
+    | '/sites/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +116,8 @@ export interface RootRouteChildren {
   IncidentsRoute: typeof IncidentsRoute
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
+  VpsRoute: typeof VpsRoute
+  SitesIdRoute: typeof SitesIdRoute
   SitesIndexRoute: typeof SitesIndexRoute
 }
 
@@ -109,11 +151,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vps': {
+      id: '/vps'
+      path: '/vps'
+      fullPath: '/vps'
+      preLoaderRoute: typeof VpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sites/': {
       id: '/sites/'
       path: '/sites'
       fullPath: '/sites/'
       preLoaderRoute: typeof SitesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sites/$id': {
+      id: '/sites/$id'
+      path: '/sites/$id'
+      fullPath: '/sites/$id'
+      preLoaderRoute: typeof SitesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -124,6 +180,8 @@ const rootRouteChildren: RootRouteChildren = {
   IncidentsRoute: IncidentsRoute,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
+  VpsRoute: VpsRoute,
+  SitesIdRoute: SitesIdRoute,
   SitesIndexRoute: SitesIndexRoute,
 }
 export const routeTree = rootRouteImport
