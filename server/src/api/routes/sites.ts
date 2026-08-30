@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query } from "../../db/pool.js";
 import { requireAuth } from "../../auth/session.js";
 import { probeUrl, runSiteCheck } from "../../monitor/engine.js";
+import { performHttpCheck } from "../../checks/http.js";
 import { assertSafeUrl } from "../../checks/ssrf.js";
 import { getSettings } from "../../settings.js";
 import type { SiteRow } from "../../monitor/types.js";
@@ -283,16 +284,134 @@ sitesRouter.get("/:id/endpoint-history", async (req, res) => {
 sitesRouter.post("/:id/endpoints", async (req, res) => {
   const parsed = endpointSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid endpoint" });
+    res.status(400).json({ error: "Invalid endpoint", details: parsed.error.flatten() });
+    return;
+  }
+  const site = await getSite(Number(req.params.id));
+  if (!site) {
+    res.status(404).json({ error: "Site not found" });
     return;
   }
   const e = parsed.data;
+  try {
+    assertSafeUrl(new URL(e.path, site.url).toString());
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message || "Invalid endpoint path" });
+    return;
+  }
   const out = await query<{ id: number }>(
     `INSERT INTO endpoints(site_id, name, path, expected_status, timeout_ms, expected_content, forbidden_content, is_critical, enabled)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-    [Number(req.params.id), e.name, e.path, e.expected_status, e.timeout_ms, e.expected_content, e.forbidden_content, e.is_critical, e.enabled],
+    [site.id, e.name, e.path, e.expected_status, e.timeout_ms, e.expected_content, e.forbidden_content, e.is_critical, e.enabled],
   );
+  log.info("endpoint created", { siteId: site.id, endpointId: out.rows[0].id });
   res.status(201).json({ id: out.rows[0].id });
+});
+
+sitesRouter.put("/:id/endpoints/:endpointId", async (req, res) => {
+  const parsed = endpointSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid endpoint", details: parsed.error.flatten() });
+    return;
+  }
+  const site = await getSite(Number(req.params.id));
+  if (!site) {
+    res.status(404).json({ error: "Site not found" });
+    return;
+  }
+  const e = parsed.data;
+  try {
+    assertSafeUrl(new URL(e.path, site.url).toString());
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message || "Invalid endpoint path" });
+    return;
+  }
+  const result = await query(
+    `UPDATE endpoints SET name=$3, path=$4, expected_status=$5, timeout_ms=$6, expected_content=$7,
+       forbidden_content=$8, is_critical=$9, enabled=$10,
+       status = CASE WHEN $10 THEN status ELSE 'disabled' END
+     WHERE id=$1 AND site_id=$2`,
+    [
+      Number(req.params.endpointId), site.id, e.name, e.path, e.expected_status, e.timeout_ms,
+      e.expected_content, e.forbidden_content, e.is_critical, e.enabled,
+    ],
+  );
+  if (!result.rowCount) {
+    res.status(404).json({ error: "Endpoint not found" });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+sitesRouter.patch("/:id/endpoints/:endpointId/enabled", async (req, res) => {
+  const parsed = z.object({ enabled: z.boolean() }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const result = await query(
+    `UPDATE endpoints SET enabled=$3,
+       status = CASE WHEN $3 THEN 'unknown' ELSE 'disabled' END,
+       consecutive_failures = CASE WHEN $3 THEN consecutive_failures ELSE 0 END
+     WHERE id=$1 AND site_id=$2`,
+    [Number(req.params.endpointId), Number(req.params.id), parsed.data.enabled],
+  );
+  if (!result.rowCount) {
+    res.status(404).json({ error: "Endpoint not found" });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+/** Run a live endpoint check without saving anything. */
+sitesRouter.post("/:id/endpoints/test", async (req, res) => {
+  const schema = z.object({
+    path: z.string().min(1).max(500),
+    expected_status: z.string().max(64).default("200-299"),
+    timeout_ms: z.number().int().min(1000).max(120_000).default(10_000),
+    expected_content: z.array(z.string().max(500)).max(20).default([]),
+    forbidden_content: z.array(z.string().max(500)).max(20).default([]),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid endpoint test request" });
+    return;
+  }
+  const site = await getSite(Number(req.params.id));
+  if (!site) {
+    res.status(404).json({ error: "Site not found" });
+    return;
+  }
+  const t = parsed.data;
+  let target: string;
+  try {
+    target = new URL(t.path, site.url).toString();
+    assertSafeUrl(target);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message || "Invalid endpoint path" });
+    return;
+  }
+  try {
+    const result = await performHttpCheck({
+      url: target,
+      timeoutMs: t.timeout_ms,
+      expectedStatus: t.expected_status,
+      followRedirects: site.follow_redirects,
+      expectedContent: t.expected_content,
+      forbiddenContent: t.forbidden_content,
+    });
+    res.json({
+      resolvedUrl: target,
+      success: result.success,
+      httpStatus: result.httpStatus,
+      responseMs: result.responseMs,
+      contentFailure: result.contentFailure,
+      contentOk: !result.contentFailure,
+      errorMessage: result.errorMessage,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Endpoint test failed" });
+  }
 });
 
 sitesRouter.delete("/:id/endpoints/:endpointId", async (req, res) => {

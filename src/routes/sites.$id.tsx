@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   CartesianGrid,
@@ -12,8 +12,9 @@ import {
   YAxis,
 } from "recharts";
 import { AppShell } from "@/components/monitor/AppShell";
+import { EndpointDialog, type EndpointRecord } from "@/components/monitor/EndpointDialog";
 import { StatusPill } from "@/components/monitor/StatusPill";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { dateTime, duration, ms, percent, relativeTime } from "@/lib/format";
 
 export const Route = createFileRoute("/sites/$id")({
@@ -48,16 +49,13 @@ interface SiteDetail {
     failure_threshold: number;
     dns_mode: "static" | "dynamic";
   };
-  endpoints: Array<{
-    id: number;
-    name: string;
-    path: string;
-    status: string;
-    is_critical: boolean;
-    enabled: boolean;
-    last_check_at: string | null;
-    last_error: string | null;
-  }>;
+  endpoints: Array<
+    EndpointRecord & {
+      status: string;
+      last_check_at: string | null;
+      last_error: string | null;
+    }
+  >;
   ssl: Array<{
     id: number;
     checked_at: string;
@@ -93,6 +91,10 @@ function SiteDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("Overview");
   const [range, setRange] = useState("24h");
+  const [endpointDialog, setEndpointDialog] = useState<{ open: boolean; endpoint: EndpointRecord | null }>({
+    open: false,
+    endpoint: null,
+  });
 
   const detail = useQuery({
     queryKey: ["site", id],
@@ -116,6 +118,16 @@ function SiteDetailPage() {
   });
   const acceptDns = useMutation({
     mutationFn: () => apiPost(`/sites/${id}/dns-baseline`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", id] }),
+  });
+
+  const toggleEndpoint = useMutation({
+    mutationFn: (v: { id: number; enabled: boolean }) =>
+      apiPatch(`/sites/${id}/endpoints/${v.id}/enabled`, { enabled: v.enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", id] }),
+  });
+  const deleteEndpoint = useMutation({
+    mutationFn: (endpointId: number) => apiDelete(`/sites/${id}/endpoints/${endpointId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", id] }),
   });
 
@@ -210,40 +222,96 @@ function SiteDetailPage() {
             ) : null}
 
             {tab === "Endpoints" ? (
-              <div className="panel overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2">Endpoint</th>
-                      <th className="px-3 py-2">Path</th>
-                      <th className="px-3 py-2">Criticality</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Last checked</th>
-                      <th className="px-3 py-2">Last error</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.endpoints.map((e) => (
-                      <tr key={e.id} className="border-t border-border">
-                        <td className="px-3 py-2">{e.name}</td>
-                        <td className="numeric px-3 py-2 text-muted-foreground">{e.path}</td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{e.is_critical ? "Critical" : "Non-critical"}</td>
-                        <td className="px-3 py-2">
-                          <StatusPill status={e.enabled ? e.status : "disabled"} />
-                        </td>
-                        <td className="px-3 py-2 text-muted-foreground">{relativeTime(e.last_check_at)}</td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{e.last_error ?? "—"}</td>
-                      </tr>
-                    ))}
-                    {d.endpoints.length === 0 ? (
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Endpoints are checked by the server-side worker alongside the primary URL. Critical failures mark the
+                    site critical; non-critical failures mark it warning.
+                  </p>
+                  <button
+                    onClick={() => setEndpointDialog({ open: true, endpoint: null })}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground"
+                  >
+                    <Plus className="size-3.5" /> Add endpoint
+                  </button>
+                </div>
+                <div className="panel overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <tr>
-                        <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
-                          Only the primary URL is monitored for this site.
-                        </td>
+                        <th className="px-3 py-2">Endpoint</th>
+                        <th className="px-3 py-2">Path</th>
+                        <th className="px-3 py-2">Criticality</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Last checked</th>
+                        <th className="px-3 py-2">Last error</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
                       </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {d.endpoints.map((e) => (
+                        <tr key={e.id} className="border-t border-border">
+                          <td className="px-3 py-2">{e.name}</td>
+                          <td className="numeric px-3 py-2 text-muted-foreground">{e.path}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{e.is_critical ? "Critical" : "Non-critical"}</td>
+                          <td className="px-3 py-2">
+                            <StatusPill status={e.enabled ? e.status : "disabled"} />
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">{relativeTime(e.last_check_at)}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{e.last_error ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center justify-end gap-2 text-xs">
+                              <button
+                                onClick={() => toggleEndpoint.mutate({ id: e.id, enabled: !e.enabled })}
+                                disabled={toggleEndpoint.isPending}
+                                className="rounded-md border border-border px-2 py-1 hover:bg-secondary disabled:opacity-60"
+                              >
+                                {e.enabled ? "Disable" : "Enable"}
+                              </button>
+                              <button
+                                onClick={() => setEndpointDialog({ open: true, endpoint: e })}
+                                aria-label={`Edit ${e.name}`}
+                                className="rounded-md border border-border p-1 hover:bg-secondary"
+                              >
+                                <Pencil className="size-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Delete endpoint "${e.name}"? Its check history will be removed.`)) {
+                                    deleteEndpoint.mutate(e.id);
+                                  }
+                                }}
+                                aria-label={`Delete ${e.name}`}
+                                className="rounded-md border border-border p-1 text-[hsl(var(--status-critical))] hover:bg-secondary"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {d.endpoints.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                            Only the primary URL is monitored for this site.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+                {endpointDialog.open ? (
+                  <EndpointDialog
+                    siteId={id}
+                    siteUrl={d.site.url}
+                    endpoint={endpointDialog.endpoint}
+                    onClose={() => setEndpointDialog({ open: false, endpoint: null })}
+                    onSaved={() => {
+                      setEndpointDialog({ open: false, endpoint: null });
+                      void queryClient.invalidateQueries({ queryKey: ["site", id] });
+                    }}
+                  />
+                ) : null}
               </div>
             ) : null}
 
