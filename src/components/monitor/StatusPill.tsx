@@ -1,6 +1,8 @@
 import type { Health } from "@/lib/format";
 
-const MAP: Record<string, { label: string; dot: string; text: string; bg: string }> = {
+type Pill = { label: string; dot: string; text: string; bg: string };
+const FALLBACK: Pill = { label: "Unknown", dot: "bg-unknown", text: "text-unknown", bg: "bg-unknown-soft/40" };
+const MAP: Record<string, Pill> = {
   healthy: { label: "Healthy", dot: "bg-healthy", text: "text-healthy", bg: "bg-healthy-soft/40" },
   warning: { label: "Warning", dot: "bg-warning", text: "text-warning", bg: "bg-warning-soft/40" },
   critical: { label: "Critical", dot: "bg-critical", text: "text-critical", bg: "bg-critical-soft/40" },
@@ -13,7 +15,7 @@ const MAP: Record<string, { label: string; dot: string; text: string; bg: string
 };
 
 export function StatusPill({ status, label }: { status: Health; label?: string }) {
-  const s = MAP[String(status)] ?? MAP.unknown;
+  const s = MAP[String(status)] ?? FALLBACK;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${s.bg} ${s.text}`}
@@ -25,6 +27,6 @@ export function StatusPill({ status, label }: { status: Health; label?: string }
 }
 
 export function StatusDot({ status }: { status: Health }) {
-  const s = MAP[String(status)] ?? MAP.unknown;
+  const s = MAP[String(status)] ?? FALLBACK;
   return <span className={`inline-block size-2.5 rounded-full ${s.dot}`} title={s.label} />;
 }

@@ -17,7 +17,7 @@ export default defineConfig({
       // During local development the Node API runs separately on port 4000.
       proxy: {
         "/api": {
-          target: process.env.API_PROXY_TARGET ?? "http://localhost:4000",
+          target: process.env["API_PROXY_TARGET"] ?? "http://localhost:4000",
           changeOrigin: true,
         },
       },

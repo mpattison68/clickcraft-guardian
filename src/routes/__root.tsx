@@ -117,7 +117,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
  * already supplies <html>/<body>, so the shell just renders its children.
  */
 function RootShell({ children }: { children: ReactNode }) {
-  if (import.meta.env.VITE_SPA_MODE === "true") return <>{children}</>;
+  if (import.meta.env["VITE_SPA_MODE"] === "true") return <>{children}</>;
   return (
     <html lang="en" className="dark">
       <head>
