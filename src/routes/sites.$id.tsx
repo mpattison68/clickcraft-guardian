@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { AppShell } from "@/components/monitor/AppShell";
 import { StatusPill } from "@/components/monitor/StatusPill";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { dateTime, duration, ms, percent, relativeTime } from "@/lib/format";
 
 export const Route = createFileRoute("/sites/$id")({
@@ -46,6 +46,7 @@ interface SiteDetail {
     consecutive_failures: number;
     interval_seconds: number;
     failure_threshold: number;
+    dns_mode: "static" | "dynamic";
   };
   endpoints: Array<{
     id: number;
@@ -78,6 +79,7 @@ interface SiteDetail {
     a_records: string[];
     aaaa_records: string[];
     cname_records: string[];
+    ns_records: string[] | null;
     changed: boolean;
   }>;
   dnsBaseline: { a_records: string[]; aaaa_records: string[]; accepted_at: string } | null;
@@ -114,6 +116,11 @@ function SiteDetailPage() {
   });
   const acceptDns = useMutation({
     mutationFn: () => apiPost(`/sites/${id}/dns-baseline`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", id] }),
+  });
+
+  const setDnsMode = useMutation({
+    mutationFn: (dns_mode: "static" | "dynamic") => apiPatch(`/sites/${id}/dns-mode`, { dns_mode }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", id] }),
   });
 
@@ -355,6 +362,30 @@ function SiteDetailPage() {
                       Accept current DNS as baseline
                     </button>
                   </div>
+                  <div className="numeric mt-2 text-sm">NS: {latestDns?.ns_records?.join(", ") || "—"}</div>
+                  <div className="mt-4 border-t border-border pt-3">
+                    <label className="text-xs text-muted-foreground" htmlFor="dns-mode">
+                      DNS monitoring mode
+                    </label>
+                    <select
+                      id="dns-mode"
+                      className="mt-1 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      value={d.site.dns_mode ?? "static"}
+                      onChange={(e) => setDnsMode.mutate(e.target.value as "static" | "dynamic")}
+                    >
+                      <option value="static">Static / fixed IP</option>
+                      <option value="dynamic">Dynamic / CDN</option>
+                    </select>
+                    <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+                      <strong>Static / fixed IP</strong> compares A, AAAA and CNAME records against the accepted
+                      baseline and alerts on any material change — use it for sites on fixed infrastructure.{" "}
+                      <strong>Dynamic / CDN</strong> suits sites behind a CDN, load balancer or shared hosting
+                      (Hostinger, Cloudflare) where edge addresses rotate: rotating A/AAAA addresses are recorded
+                      for history only and never raise a warning, incident or notification, while the CNAME target
+                      and authoritative nameservers are still monitored. DNS resolution failure remains critical in
+                      both modes.
+                    </p>
+                  </div>
                 </div>
                 <div className="panel overflow-hidden">
                   <table className="w-full text-sm">
@@ -363,6 +394,8 @@ function SiteDetailPage() {
                         <th className="px-3 py-2">Checked</th>
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2">A records</th>
+                        <th className="px-3 py-2">CNAME</th>
+                        <th className="px-3 py-2">Nameservers</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -373,6 +406,8 @@ function SiteDetailPage() {
                             <StatusPill status={r.status} />
                           </td>
                           <td className="numeric px-3 py-2">{r.a_records.join(", ") || "—"}</td>
+                          <td className="numeric px-3 py-2">{r.cname_records.join(", ") || "—"}</td>
+                          <td className="numeric px-3 py-2">{r.ns_records?.join(", ") || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
