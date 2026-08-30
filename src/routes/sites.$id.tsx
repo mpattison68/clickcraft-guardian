@@ -48,16 +48,13 @@ interface SiteDetail {
     failure_threshold: number;
     dns_mode: "static" | "dynamic";
   };
-  endpoints: Array<{
-    id: number;
-    name: string;
-    path: string;
-    status: string;
-    is_critical: boolean;
-    enabled: boolean;
-    last_check_at: string | null;
-    last_error: string | null;
-  }>;
+  endpoints: Array<
+    EndpointRecord & {
+      status: string;
+      last_check_at: string | null;
+      last_error: string | null;
+    }
+  >;
   ssl: Array<{
     id: number;
     checked_at: string;
