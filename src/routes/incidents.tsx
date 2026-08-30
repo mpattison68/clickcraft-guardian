@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { AppShell } from "@/components/monitor/AppShell";
 import { StatusPill } from "@/components/monitor/StatusPill";
 import { apiGet } from "@/lib/api";
@@ -79,9 +79,8 @@ function IncidentsPage() {
             </thead>
             <tbody>
               {(incidents.data?.incidents ?? []).map((i) => (
-                <>
+                <Fragment key={i.id}>
                   <tr
-                    key={i.id}
                     className="cursor-pointer border-t border-border hover:bg-secondary/40"
                     onClick={() => setExpanded(expanded === i.id ? null : i.id)}
                   >
@@ -111,7 +110,7 @@ function IncidentsPage() {
                     <td className="max-w-[280px] truncate px-3 py-2 text-muted-foreground">{i.error_message ?? "—"}</td>
                   </tr>
                   {expanded === i.id ? (
-                    <tr key={`${i.id}-timeline`} className="border-t border-border bg-surface/60">
+                    <tr className="border-t border-border bg-surface/60">
                       <td colSpan={8} className="px-6 py-3">
                         <div className="text-xs uppercase tracking-wide text-muted-foreground">Timeline</div>
                         <ol className="mt-2 space-y-1">
@@ -130,7 +129,7 @@ function IncidentsPage() {
                       </td>
                     </tr>
                   ) : null}
-                </>
+                </Fragment>
               ))}
               {incidents.data && incidents.data.incidents.length === 0 ? (
                 <tr>
