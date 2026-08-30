@@ -91,9 +91,10 @@ They are ordinary rows monitored for real, and can be deleted in the UI.
 ## 3. Production deployment (Ubuntu 24.04 + Docker Compose)
 
 ```bash
-# 1. Clone
+# 1. Clone from GitHub
+# Replace <your-org> and <your-repo> with your GitHub account and repository.
 cd /opt
-git clone <your-repository-url> clickcraft-site-monitor
+git clone https://github.com/<your-org>/<your-repo>.git clickcraft-site-monitor
 cd clickcraft-site-monitor
 
 # 2. Create the shared proxy network shared with Nginx Proxy Manager (once)
