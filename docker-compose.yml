@@ -1,0 +1,71 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${APP_TIMEZONE:-Africa/Johannesburg}
+    volumes:
+      - monitor_db_data:/var/lib/postgresql/data
+    # Deliberately NOT published to the host: only the app network may reach Postgres.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [monitor]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Bind to localhost only; Nginx Proxy Manager forwards to this port.
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-4000}:${APP_PORT:-4000}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${APP_PORT:-4000}/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks: [monitor]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      HOST_PROC_PATH: /host/proc
+      HOST_ROOT_PATH: /host/root
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Read-only host visibility for VPS health metrics.
+      - /proc:/host/proc:ro
+      - /:/host/root:ro
+      # OPTIONAL Docker container monitoring. Read-only socket mount.
+      # Uncomment together with DOCKER_SOCKET_PATH=/var/run/docker.sock in .env.
+      # Security note: see README — grants read access to the Docker API.
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [monitor]
+
+volumes:
+  monitor_db_data:
+
+networks:
+  monitor:
+    driver: bridge
