@@ -33,7 +33,7 @@ const TABS = ["Overview", "Endpoints", "Performance", "Uptime", "SSL", "DNS", "S
 type Tab = (typeof TABS)[number];
 
 interface SiteDetail {
-  site: Record<string, never> & {
+  site: {
     id: number;
     name: string;
     url: string;
