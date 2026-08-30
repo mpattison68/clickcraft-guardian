@@ -222,40 +222,96 @@ function SiteDetailPage() {
             ) : null}
 
             {tab === "Endpoints" ? (
-              <div className="panel overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2">Endpoint</th>
-                      <th className="px-3 py-2">Path</th>
-                      <th className="px-3 py-2">Criticality</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Last checked</th>
-                      <th className="px-3 py-2">Last error</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.endpoints.map((e) => (
-                      <tr key={e.id} className="border-t border-border">
-                        <td className="px-3 py-2">{e.name}</td>
-                        <td className="numeric px-3 py-2 text-muted-foreground">{e.path}</td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{e.is_critical ? "Critical" : "Non-critical"}</td>
-                        <td className="px-3 py-2">
-                          <StatusPill status={e.enabled ? e.status : "disabled"} />
-                        </td>
-                        <td className="px-3 py-2 text-muted-foreground">{relativeTime(e.last_check_at)}</td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{e.last_error ?? "—"}</td>
-                      </tr>
-                    ))}
-                    {d.endpoints.length === 0 ? (
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Endpoints are checked by the server-side worker alongside the primary URL. Critical failures mark the
+                    site critical; non-critical failures mark it warning.
+                  </p>
+                  <button
+                    onClick={() => setEndpointDialog({ open: true, endpoint: null })}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground"
+                  >
+                    <Plus className="size-3.5" /> Add endpoint
+                  </button>
+                </div>
+                <div className="panel overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <tr>
-                        <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
-                          Only the primary URL is monitored for this site.
-                        </td>
+                        <th className="px-3 py-2">Endpoint</th>
+                        <th className="px-3 py-2">Path</th>
+                        <th className="px-3 py-2">Criticality</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Last checked</th>
+                        <th className="px-3 py-2">Last error</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
                       </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {d.endpoints.map((e) => (
+                        <tr key={e.id} className="border-t border-border">
+                          <td className="px-3 py-2">{e.name}</td>
+                          <td className="numeric px-3 py-2 text-muted-foreground">{e.path}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{e.is_critical ? "Critical" : "Non-critical"}</td>
+                          <td className="px-3 py-2">
+                            <StatusPill status={e.enabled ? e.status : "disabled"} />
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">{relativeTime(e.last_check_at)}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{e.last_error ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center justify-end gap-2 text-xs">
+                              <button
+                                onClick={() => toggleEndpoint.mutate({ id: e.id, enabled: !e.enabled })}
+                                disabled={toggleEndpoint.isPending}
+                                className="rounded-md border border-border px-2 py-1 hover:bg-secondary disabled:opacity-60"
+                              >
+                                {e.enabled ? "Disable" : "Enable"}
+                              </button>
+                              <button
+                                onClick={() => setEndpointDialog({ open: true, endpoint: e })}
+                                aria-label={`Edit ${e.name}`}
+                                className="rounded-md border border-border p-1 hover:bg-secondary"
+                              >
+                                <Pencil className="size-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Delete endpoint "${e.name}"? Its check history will be removed.`)) {
+                                    deleteEndpoint.mutate(e.id);
+                                  }
+                                }}
+                                aria-label={`Delete ${e.name}`}
+                                className="rounded-md border border-border p-1 text-[hsl(var(--status-critical))] hover:bg-secondary"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {d.endpoints.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                            Only the primary URL is monitored for this site.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+                {endpointDialog.open ? (
+                  <EndpointDialog
+                    siteId={id}
+                    siteUrl={d.site.url}
+                    endpoint={endpointDialog.endpoint}
+                    onClose={() => setEndpointDialog({ open: false, endpoint: null })}
+                    onSaved={() => {
+                      setEndpointDialog({ open: false, endpoint: null });
+                      void queryClient.invalidateQueries({ queryKey: ["site", id] });
+                    }}
+                  />
+                ) : null}
               </div>
             ) : null}
 
