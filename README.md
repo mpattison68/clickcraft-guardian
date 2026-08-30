@@ -67,9 +67,12 @@ cd server && npm install && npm run dev
 # 3. Monitoring worker (separate terminal)
 cd server && npm run dev:worker
 
-# 4. Frontend dev server (proxies /api to localhost:4000)
-npm install && npm run dev
+# 4. Frontend dev server on http://localhost:5173 (proxies /api to localhost:4000)
+npm install && npm run dev:spa
 ```
+
+`npm run dev:spa` runs the same single-page build that ships in the Docker image.
+Override the backend it talks to with `API_PROXY_TARGET=http://host:port npm run dev:spa`.
 
 Set `SEED_DEMO_SITES=true` before first start to create a few example sites.
 They are ordinary rows monitored for real, and can be deleted in the UI.
