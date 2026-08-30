@@ -50,14 +50,16 @@ async function sampleCpu(): Promise<CpuSample | null> {
   return { idle, total };
 }
 
+function loadApproximation(): number {
+  const load = os.loadavg()[0];
+  const cores = os.cpus().length || 1;
+  return Math.min(100, Math.round((load / cores) * 100 * 100) / 100);
+}
+
 async function cpuPercent(): Promise<number | null> {
   let sample = await sampleCpu();
-  if (!sample) {
-    // No /proc/stat (non-Linux host): approximate from load average.
-    const load = os.loadavg()[0];
-    const cores = os.cpus().length || 1;
-    return Math.min(100, Math.round((load / cores) * 100 * 100) / 100);
-  }
+  // No usable /proc/stat (non-Linux or sandboxed host): approximate from load average.
+  if (!sample) return loadApproximation();
   let prev = lastCpu;
   if (!prev) {
     // First collection: take a short second sample so the very first row is not null.
