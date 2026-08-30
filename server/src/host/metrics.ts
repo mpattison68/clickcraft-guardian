@@ -39,24 +39,38 @@ interface CpuSample {
 
 let lastCpu: CpuSample | null = null;
 
-async function cpuPercent(): Promise<number | null> {
+async function sampleCpu(): Promise<CpuSample | null> {
   const stat = await readProc("stat");
-  if (!stat) {
-    const load = os.loadavg()[0];
-    const cores = os.cpus().length || 1;
-    return Math.min(100, Math.round((load / cores) * 100 * 100) / 100);
-  }
+  if (!stat) return null;
   const line = stat.split("\n").find((l) => l.startsWith("cpu "));
   if (!line) return null;
   const parts = line.split(/\s+/).slice(1).map(Number).filter((n) => Number.isFinite(n));
   const idle = (parts[3] ?? 0) + (parts[4] ?? 0);
   const total = parts.reduce((a, b) => a + b, 0);
-  const prev = lastCpu;
-  lastCpu = { idle, total };
-  if (!prev) return null;
-  const dTotal = total - prev.total;
-  const dIdle = idle - prev.idle;
-  if (dTotal <= 0) return null;
+  return { idle, total };
+}
+
+function loadApproximation(): number {
+  const load = os.loadavg()[0];
+  const cores = os.cpus().length || 1;
+  return Math.min(100, Math.round((load / cores) * 100 * 100) / 100);
+}
+
+async function cpuPercent(): Promise<number | null> {
+  let sample = await sampleCpu();
+  // No usable /proc/stat (non-Linux or sandboxed host): approximate from load average.
+  if (!sample) return loadApproximation();
+  let prev = lastCpu;
+  if (!prev) {
+    // First collection: take a short second sample so the very first row is not null.
+    prev = sample;
+    await new Promise((r) => setTimeout(r, 300));
+    sample = (await sampleCpu()) ?? sample;
+  }
+  lastCpu = sample;
+  const dTotal = sample.total - prev.total;
+  const dIdle = sample.idle - prev.idle;
+  if (dTotal <= 0) return loadApproximation();
   return Math.round(((dTotal - dIdle) / dTotal) * 10000) / 100;
 }
 
