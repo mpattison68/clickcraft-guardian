@@ -54,6 +54,23 @@ reachable from the proxy network.
 | `server/src/db/migrations/` | SQL migrations (applied automatically on boot) |
 | `Dockerfile`, `docker-compose.yml`, `.env.example` | Deployment |
 
+### DNS monitoring modes
+
+Each site has a **DNS monitoring mode**, set in the Add Site wizard (step 2) and
+changeable later on the site's DNS tab:
+
+- **Static / fixed IP** (default, including for all pre-existing sites) — A, AAAA
+  and CNAME records are compared against the accepted baseline and any material
+  change raises a warning and a Telegram/email alert.
+- **Dynamic / CDN** — for sites behind a CDN, load balancer or shared hosting
+  (Hostinger, Cloudflare) where edge IPs rotate. A/AAAA changes are recorded in
+  DNS history for information only and never produce a warning, incident or
+  notification; the CNAME target and the authoritative nameservers are monitored
+  instead.
+
+DNS resolution failure remains a critical condition in both modes.
+
+
 Future modules (external watchdog, synthetic journeys, backup monitoring,
 Docker remediation, multiple VPS agents, domain expiry) slot in as additional
 worker loops, tables and routes without restructuring.
