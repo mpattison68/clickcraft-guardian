@@ -70,7 +70,7 @@ async function cpuPercent(): Promise<number | null> {
   lastCpu = sample;
   const dTotal = sample.total - prev.total;
   const dIdle = sample.idle - prev.idle;
-  if (dTotal <= 0) return null;
+  if (dTotal <= 0) return loadApproximation();
   return Math.round(((dTotal - dIdle) / dTotal) * 10000) / 100;
 }
 
