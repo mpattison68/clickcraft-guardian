@@ -60,6 +60,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     command: ["node", "dist/worker.js"]
+    # The worker has no HTTP server; its health is tracked via the app service's
+    # /api/health endpoint (database heartbeat). Disable the Dockerfile's HTTP
+    # healthcheck so the container is not marked unhealthy.
+    healthcheck:
+      disable: true
     env_file: .env
     environment:
       POSTGRES_HOST: db
