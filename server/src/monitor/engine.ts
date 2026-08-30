@@ -2,7 +2,7 @@ import { query } from "../db/pool.js";
 import { createLogger } from "../logger.js";
 import { dispatchNotification } from "../notify/dispatcher.js";
 import { getSettings } from "../settings.js";
-import { performDnsCheck } from "../checks/dns.js";
+import { performDnsCheck, type DnsMode } from "../checks/dns.js";
 import { performHttpCheck } from "../checks/http.js";
 import { performSslCheck } from "../checks/ssl.js";
 import { assertSafeUrl } from "../checks/ssrf.js";
