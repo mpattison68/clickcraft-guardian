@@ -30,3 +30,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local server-side configuration — never commit
+.env
+.env.*
+!.env.example
+server/dist
